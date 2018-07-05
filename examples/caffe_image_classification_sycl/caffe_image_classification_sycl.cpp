@@ -6,9 +6,16 @@
     in the LICENSE file.
 */
 
+#include <dirent.h>
+#include <cstring>
 #include <ctime>
 #include <iostream>
 #include <memory>
+#include <string>
+#include <vector>
+
+// include Cimg for image display
+#include "CImg.h"
 
 #define NO_STRICT
 #define CNN_USE_CAFFE_CONVERTER
@@ -18,6 +25,8 @@
 #endif
 
 #include "tiny_dnn/tiny_dnn.h"
+
+using namespace cimg_library;
 
 tiny_dnn::image<float> compute_mean(const std::string &mean_file,
                                     int width,
@@ -64,11 +73,28 @@ std::vector<std::string> get_label_list(const std::string &label_file) {
   return lines;
 }
 
+std::vector<std::string> list_files(std::string folder_path) {
+  DIR *dir;
+  struct dirent *ent;
+  std::vector<std::string> files;
+  if ((dir = opendir(folder_path.c_str())) != NULL) {
+    /* print all the files and directories within directory */
+    while ((ent = readdir(dir)) != NULL) {
+      if (std::strcmp(ent->d_name, ".") != 0 &&
+          std::strcmp(ent->d_name, "..") != 0) {
+        files.push_back(folder_path + std::string(ent->d_name));
+      }
+    }
+    closedir(dir);
+  }
+  return files;
+}
+
 void test(const std::string &model_file,
           const std::string &trained_file,
           const std::string &mean_file,
           const std::string &label_file,
-          const std::string &img_file) {
+          const std::string &imgs_path) {
   auto labels = get_label_list(label_file);
   auto net    = tiny_dnn::create_net_from_caffe_prototxt(model_file);
   tiny_dnn::reload_weight_from_caffe_protobinary(trained_file, net.get());
@@ -79,30 +105,44 @@ void test(const std::string &model_file,
 
   auto mean = compute_mean(mean_file, width, height);
 
-  tiny_dnn::image<float> img(img_file, tiny_dnn::image_type::bgr);
+  CImgDisplay disp;
 
-  tiny_dnn::vec_t vec;
+  std::vector<std::string> file_list = list_files(imgs_path);
 
-  preprocess(img, mean, width, height, &vec);
+  for (auto img_file : file_list) {
+    std::cout << img_file << std::endl;
+    tiny_dnn::image<float> img(img_file, tiny_dnn::image_type::bgr);
 
-  clock_t begin = clock();
+    tiny_dnn::vec_t vec;
 
-  auto result = net->predict(vec);
+    preprocess(img, mean, width, height, &vec);
 
-  clock_t end         = clock();
-  double elapsed_secs = static_cast<double>(end - begin) / CLOCKS_PER_SEC;
-  std::cout << "Elapsed time(s): " << elapsed_secs << std::endl;
+    clock_t begin = clock();
 
-  std::vector<tiny_dnn::float_t> sorted(result.begin(), result.end());
+    auto result = net->predict(vec);
 
-  int top_n = 5;
-  partial_sort(sorted.begin(), sorted.begin() + top_n, sorted.end(),
-               std::greater<tiny_dnn::float_t>());
+    clock_t end         = clock();
+    double elapsed_secs = static_cast<double>(end - begin) / CLOCKS_PER_SEC;
+    std::cout << "Elapsed time(s): " << elapsed_secs << std::endl;
 
-  for (int i = 0; i < top_n; i++) {
-    size_t idx =
-      distance(result.begin(), find(result.begin(), result.end(), sorted[i]));
-    std::cout << labels[idx] << "," << sorted[i] << std::endl;
+    std::vector<tiny_dnn::float_t> sorted(result.begin(), result.end());
+
+    int top_n = 5;
+    partial_sort(sorted.begin(), sorted.begin() + top_n, sorted.end(),
+                 std::greater<tiny_dnn::float_t>());
+
+    for (int i = 0; i < top_n; i++) {
+      size_t idx =
+        distance(result.begin(), find(result.begin(), result.end(), sorted[i]));
+      std::cout << labels[idx] << "," << sorted[i] << std::endl;
+    }
+
+    CImg<unsigned char> image(img_file.c_str());
+    image                  = image.resize(512, 512);
+    unsigned char purple[] = {255, 0, 255};
+    img.draw_text(20, 20, labels[idx], purple);
+    disp.display(image);
+    disp.wait(1000);
   }
 }
 
@@ -112,11 +152,13 @@ int main(int argc, char **argv) {
   std::string trained_file = argv[arg_channel++];
   std::string mean_file    = argv[arg_channel++];
   std::string label_file   = argv[arg_channel++];
-  std::string img_file     = argv[arg_channel++];
+  std::string imgs_path    = argv[arg_channel++];
 
   try {
-    test(model_file, trained_file, mean_file, label_file, img_file);
+    test(model_file, trained_file, mean_file, label_file, imgs_path);
   } catch (const tiny_dnn::nn_error &e) {
     std::cout << e.what() << std::endl;
   }
+
+  return 0;
 }

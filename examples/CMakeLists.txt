@@ -79,17 +79,23 @@ if(PROTO_CPP_AVAILABLE)
             ${PROTOBUF_LIBRARIES} ${REQUIRED_LIBRARIES})
     cotire(example_caffe_converter)
 
-    add_executable(caffe_image_classification_sycl
-                   caffe_converter/caffe_image_classification_sycl.cpp ${proto_file} ${tiny_dnn_headers})
-    target_link_libraries(caffe_image_classification_sycl
+    add_executable(example_caffe_image_classification_sycl
+                   caffe_image_classification_sycl/caffe_image_classification_sycl.cpp ${proto_file} ${tiny_dnn_headers})
+    target_link_libraries(example_caffe_image_classification_sycl PUBLIC
             ${project_library_target_name}
             ${PROTOBUF_LIBRARIES} ${REQUIRED_LIBRARIES})
-    cotire(caffe_image_classification_sycl)
+
+    # include cimg
+    target_include_directories( example_caffe_image_classification_sycl PUBLIC ${CIMG_PATH_DIR} )
+
+    find_package(X11 REQUIRED)
+    target_link_libraries(example_caffe_image_classification_sycl PUBLIC ${X11_LIBRARIES})
+    cotire(example_caffe_image_classification_sycl)
 endif()
 
 if(PROTO_CPP_GENERATE)
     add_dependencies(example_caffe_converter generated_proto)
-    add_dependencies(caffe_image_classification_sycl generated_proto)
+    add_dependencies(example_caffe_image_classification_sycl)
 endif()
 
 if(USE_CBLAS)
