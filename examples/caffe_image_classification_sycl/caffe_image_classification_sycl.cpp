@@ -130,17 +130,18 @@ void test(const std::string &model_file,
     int top_n = 5;
     partial_sort(sorted.begin(), sorted.begin() + top_n, sorted.end(),
                  std::greater<tiny_dnn::float_t>());
-
+    CImg<unsigned char> image(img_file.c_str());
+    image = image.resize(512, 512);
     for (int i = 0; i < top_n; i++) {
       size_t idx =
         distance(result.begin(), find(result.begin(), result.end(), sorted[i]));
+      if (i == 0) {
+        unsigned char purple[] = {255, 0, 255};
+        image                  = img.draw_text(20, 20, labels[idx], purple);
+      }
       std::cout << labels[idx] << "," << sorted[i] << std::endl;
     }
 
-    CImg<unsigned char> image(img_file.c_str());
-    image                  = image.resize(512, 512);
-    unsigned char purple[] = {255, 0, 255};
-    img.draw_text(20, 20, labels[idx], purple);
     disp.display(image);
     disp.wait(1000);
   }
